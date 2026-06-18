@@ -9,7 +9,9 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "seed": "tsx src/seed.ts",
-    "demo": "node demo.mjs"
+    "demo": "node demo.mjs",
+    "web:dev": "npm --prefix web run dev",
+    "web:build": "npm --prefix web run build"
   },
   "dependencies": {
     "@mollie/api-client": "^4.1.0",

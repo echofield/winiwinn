@@ -1,5 +1,7 @@
 node_modules/
 dist/
+.next/
+*.log
 *.db
 *.db-journal
 *.db-wal

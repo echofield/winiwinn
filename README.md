@@ -41,6 +41,29 @@ npm run dev                # http://localhost:8080
 On boot the server prints a few **example domino splits** so you can see the math
 without a frontend. `npm run build` + `npm start` runs the compiled version.
 
+### Frontend
+
+The Next.js App Router frontend lives in `web/`.
+
+```bash
+cd web
+npm install
+cp .env.example .env.local  # NEXT_PUBLIC_API_URL=http://localhost:8080
+npm run dev                 # http://localhost:3000
+```
+
+From the repo root you can also run:
+
+```bash
+npm run web:dev
+npm run web:build
+```
+
+The current web merge slice ports the Winwinn field/canvas language and runs the
+canonical backend flow: `users -> recommendations -> join -> merchants ->
+contracts -> conversions -> settlement`. The client renders settlement rows from
+`GET /conversions/:id/settlement`; it does not compute money or aura payouts.
+
 ### Env
 
 | var | meaning |
