@@ -1,0 +1,28 @@
+{
+  "name": "field-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FIELD — a recommendation economy where value flows back along the recommendation chain via a capped domino split, settled with Mollie.",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "seed": "tsx src/seed.ts",
+    "demo": "node demo.mjs"
+  },
+  "dependencies": {
+    "@mollie/api-client": "^4.1.0",
+    "better-sqlite3": "^11.3.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  }
+}
