@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FieldCanvas } from "@/components/FieldCanvas";
 import {
   buildDemoRail,
@@ -9,6 +9,7 @@ import {
   createUser,
   createRecommendation,
   demoDna,
+  getConversionSettlement,
   getEconomy,
   getField,
   getReputation,
@@ -69,6 +70,8 @@ export default function Home() {
   const [recRole, setRecRole] = useState(0);
   const [recTitle, setRecTitle] = useState("");
   const [rewardIdx, setRewardIdx] = useState(0);
+  const pollRef = useRef<number | null>(null);
+  useEffect(() => () => { if (pollRef.current) window.clearInterval(pollRef.current); }, []);
 
   useEffect(() => {
     getEconomy().then(setEconomy).catch(() => {
@@ -167,16 +170,40 @@ export default function Home() {
       setNotice(
         next.conversion.mode === "simulation"
           ? "Chez Janou settled the reward back through the chain."
-          : "Mollie checkout is live — pay it in test mode to settle the chain.",
+          : "Open the Mollie checkout → pay in test mode → the contract fires the instant it's paid.",
       );
       const rep = await getReputation(next.carol.id).catch(() => null);
       setReputation(rep);
+      // Live Mollie: the conversion is real and pending until paid. Poll the
+      // settlement so the moment the webhook confirms payment, the receipt booms in.
+      if (next.conversion.mode === "live-test") pollSettlement(next.conversion.conversionId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not run the demo settlement.");
       setNotice("The field couldn't settle just now — try again in a moment.");
     } finally {
       setBusy(false);
     }
+  }
+
+  // Poll a live conversion until the Mollie webhook settles it (paid) → boom.
+  function pollSettlement(conversionId: string) {
+    if (pollRef.current) window.clearInterval(pollRef.current);
+    let tries = 0;
+    pollRef.current = window.setInterval(async () => {
+      tries += 1;
+      try {
+        const s = await getConversionSettlement(conversionId);
+        if (s.status === "settled" && s.chain.length) {
+          if (pollRef.current) window.clearInterval(pollRef.current);
+          setRail((cur) => (cur ? { ...cur, settlement: s } : cur));
+          setShowReceipt(true);
+          setNotice("Paid. The contract fired — the reward is flowing back through the chain.");
+        }
+      } catch {
+        // keep waiting
+      }
+      if (tries > 60 && pollRef.current) window.clearInterval(pollRef.current); // ~3.5 min cap
+    }, 3500);
   }
 
   // Resolve a shareable recommendation token so phone A can display its QR.
