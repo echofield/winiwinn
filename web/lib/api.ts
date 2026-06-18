@@ -1,4 +1,5 @@
 import type {
+  Contract,
   ContractResponse,
   ConversionResponse,
   ConversionSettlement,
@@ -127,6 +128,10 @@ export function createConversion(input: {
 
 export function getConversionSettlement(conversionId: string): Promise<ConversionSettlement> {
   return request<ConversionSettlement>(`/conversions/${conversionId}/settlement`);
+}
+
+export function getContract(id: string): Promise<Contract> {
+  return request<Contract>(`/contracts/${id}`);
 }
 
 export async function confirmHelp(fromUserId: string, toUserId: string, kind: "vouch" | "intro" = "vouch"): Promise<void> {

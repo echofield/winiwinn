@@ -317,6 +317,9 @@ export default function Home() {
               <button className="secondary-button" onClick={() => { setShareToken(null); setCopied(false); setShowShare(true); }}>
                 ✦ Show QR code
               </button>
+              <Link className="secondary-button" href="/merchant" style={{ textDecoration: "none", textAlign: "center" }}>
+                I&apos;m a merchant →
+              </Link>
             </div>
             <p className="mono small">Secured by Mollie · {displayNodes} souls already moving</p>
             {error && <p className="error mono">{error}</p>}
