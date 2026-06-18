@@ -62,6 +62,17 @@ export function getField(userId: string): Promise<FieldResponse> {
   return request<FieldResponse>(`/users/${userId}/field`);
 }
 
+export type DeepLinkResponse = {
+  recommendation: { token: string; title: string; from_user_id: string; amount_cents: number; contract_id: string | null };
+  fromUser: User | null;
+  fieldPreview: { nodeCount: number; edges: { from: string; to: string }[] };
+};
+
+// GET /r/:token — resolve a scanned/deep-linked recommendation to its inviter.
+export function resolveRecommendation(token: string): Promise<DeepLinkResponse> {
+  return request<DeepLinkResponse>(`/r/${token}`);
+}
+
 export function getEconomy(): Promise<EconomyResponse> {
   return request<EconomyResponse>("/economy");
 }

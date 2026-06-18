@@ -609,3 +609,145 @@ button {
   background: var(--accent);
   box-shadow: 0 0 10px var(--accent);
 }
+
+/* QR share card */
+.qr-card {
+  width: 100%;
+  max-width: 340px;
+  padding: 26px 24px 22px;
+  border-radius: 24px;
+  border: 1px solid var(--brdg);
+  background: var(--card);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 0 60px rgba(120, 95, 30, 0.2), 0 30px 80px rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+.qr-well {
+  margin: 18px auto 0;
+  width: 224px;
+  height: 224px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  padding: 14px;
+  background: #f4efe2;
+  box-shadow: 0 0 40px rgba(120, 95, 30, 0.25);
+}
+.qr-link {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--brd);
+  background: var(--card2);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+/* scanner */
+.scan-shell,
+.enter-shell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 22px;
+  gap: 18px;
+}
+.scan-head {
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 2;
+}
+.scan-back {
+  color: var(--muted);
+  text-decoration: none;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+}
+.scanner-frame {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  aspect-ratio: 3 / 4;
+  border-radius: 22px;
+  overflow: hidden;
+  border: 1px solid var(--brd);
+  background: #000;
+}
+.scanner-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.scanner-reticle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 62%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--accent);
+  border-radius: 26px;
+  box-shadow: 0 0 0 100vmax rgba(4, 3, 8, 0.45), inset 0 0 24px rgba(194, 162, 95, 0.35);
+}
+.scanner-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 22px;
+  text-align: center;
+  font-family: "Cormorant Garamond", serif;
+  font-style: italic;
+  font-size: 17px;
+  color: #f2ede2;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+.scan-paste {
+  width: 100%;
+  max-width: 460px;
+}
+
+/* deep-link enter screen */
+.enter-card {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 440px;
+  margin: auto 0;
+  padding: 30px 26px;
+  border-radius: 24px;
+  border: 1px solid var(--brd);
+  background: var(--glass2, var(--card));
+  backdrop-filter: blur(13px);
+}
+.enter-name {
+  font-family: "Cormorant Garamond", serif;
+  font-weight: 600;
+  font-size: 40px;
+  line-height: 1.05;
+  margin: 10px 0 0;
+  color: var(--ink);
+}
+.enter-title {
+  font-family: "Cormorant Garamond", serif;
+  font-style: italic;
+  font-size: 19px;
+  color: var(--muted);
+  margin-top: 12px;
+}
+.joined-card {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  margin: 0;
+}

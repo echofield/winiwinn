@@ -6,39 +6,21 @@ import {
   buildDemoRail,
   cents,
   createUser,
+  createRecommendation,
   demoDna,
   getEconomy,
   getField,
   getReputation,
 } from "@/lib/api";
 import type { ConversionSettlement, DemoRail, EconomyResponse, FieldNode, ReputationResponse, User } from "@/lib/types";
+import Link from "next/link";
+import { QrCode } from "@/components/QrCode";
+import { questions, buildDna, appOrigin } from "@/lib/onboarding";
 
 type Screen = "welcome" | "onboard" | "field";
 type View = "value" | "aura";
 type Theme = "day" | "night";
 type LayoutMode = "desktop" | "phone";
-
-const questions = [
-  {
-    text: "How much do you share?",
-    options: ["I recommend constantly", "Only when it's right", "Rarely, but it lands", "I connect people, quietly"],
-  },
-  {
-    text: "What do you trade in?",
-    options: ["Places & taste", "People & intros", "Knowledge & ideas", "Deals & access"],
-  },
-  {
-    text: "When you recommend, you...",
-    options: ["Stake behind it", "Vouch lightly", "Just drop it", "Curate, never push"],
-  },
-  {
-    text: "What's your win?",
-    options: ["The money back", "Status in the network", "Reciprocity", "Just the connection"],
-  },
-];
-
-const domainHue = [43, 330, 168, 210];
-const incentive = ["yield", "reputation", "exchange", "intrinsic"];
 
 // The field boots ALREADY ALIVE — never a €0 blank. If the backend (cold /tmp sim
 // DB) returns empty/zero, we fall back to these seeds and the ticker counts UP.
@@ -67,6 +49,9 @@ export default function Home() {
   const [notice, setNotice] = useState("Your field moves while you're away.");
   const [showReceipt, setShowReceipt] = useState(true);
   const [showMutual, setShowMutual] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     getEconomy().then(setEconomy).catch(() => {
@@ -172,6 +157,27 @@ export default function Home() {
     }
   }
 
+  // Resolve a shareable recommendation token so phone A can display its QR.
+  async function openShare() {
+    setShowShare(true);
+    setCopied(false);
+    if (shareToken) return;
+    const existing = rail?.recommendation?.token;
+    if (existing) {
+      setShareToken(existing);
+      return;
+    }
+    if (!user) return;
+    try {
+      const rec = await createRecommendation({ fromUserId: user.id, title: `Join ${user.name}'s field`, amount: 0 });
+      setShareToken(rec.token);
+    } catch {
+      // leave shareToken null — modal shows a gentle message
+    }
+  }
+
+  const shareUrl = shareToken ? `${appOrigin()}/r/${shareToken}` : "";
+
   return (
     <main className={`app-shell ${theme === "day" ? "theme-day" : "theme-night"} layout-${layoutMode}`}>
       <div className="top-glow" />
@@ -196,6 +202,9 @@ export default function Home() {
               <button className="secondary-button" onClick={runSettlement} disabled={busy}>
                 {busy ? "Settling…" : "See a deal settle ▶"}
               </button>
+              <Link className="secondary-button" href="/scan" style={{ textDecoration: "none", textAlign: "center" }}>
+                Scan a code
+              </Link>
             </div>
             <p className="mono small">Secured by Mollie · {displayNodes} souls already moving</p>
             {error && <p className="error mono">{error}</p>}
@@ -292,6 +301,12 @@ export default function Home() {
               <button className="pill" onClick={() => setLayoutMode(layoutMode === "desktop" ? "phone" : "desktop")}>
                 {layoutMode === "desktop" ? "Desktop" : "Phone"}
               </button>
+              <button className="pill pill-active" onClick={openShare}>
+                ✦ Show my code
+              </button>
+              <Link className="pill" href="/scan" style={{ textDecoration: "none" }}>
+                Scan
+              </Link>
             </div>
           </aside>
 
@@ -445,19 +460,44 @@ export default function Home() {
               </div>
             </div>
           )}
+
+          {showShare && (
+            <div className="modal-scrim" onClick={() => setShowShare(false)}>
+              <div className="qr-card" onClick={(e) => e.stopPropagation()}>
+                <div className="kicker" style={{ color: "var(--accent)" }}>your code</div>
+                <h3 style={{ margin: "8px 0 2px" }}>They scan → they step into your field.</h3>
+                {shareToken ? (
+                  <>
+                    <div className="qr-well">
+                      <QrCode value={shareUrl} size={196} />
+                    </div>
+                    <div
+                      className="qr-link mono"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(shareUrl).then(() => setCopied(true)).catch(() => undefined);
+                      }}
+                    >
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {shareUrl.replace(/^https?:\/\//, "")}
+                      </span>
+                      <span style={{ color: copied ? "#7fd9c9" : "var(--accent)" }}>{copied ? "copied" : "copy"}</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="small" style={{ marginTop: 16 }}>
+                    Build your field first, then your code appears here.
+                  </p>
+                )}
+                <button className="ghost-button" style={{ marginTop: 14 }} onClick={() => setShowShare(false)}>
+                  Done
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </main>
   );
-}
-
-function buildDna(answers: number[]) {
-  const domain = answers[1] ?? 0;
-  const h = domainHue[domain] || domainHue[0];
-  return {
-    vector: [0, 1, 2, 3].map((index) => ((answers[index] ?? 1) + 1) / 4),
-    color: `hsl(${h} 62% 64%)`,
-  };
 }
 
 function userToField(user: User) {
