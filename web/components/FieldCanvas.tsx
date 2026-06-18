@@ -16,6 +16,7 @@ type Props = {
   view: "value" | "aura";
   theme?: "day" | "night";
   reduced?: boolean;
+  onNodeTap?: (id: string) => void;
 };
 
 type LayoutNode = CanvasNode & {
@@ -26,10 +27,14 @@ type LayoutNode = CanvasNode & {
 
 const ringScale: Record<number, number> = { 0: 0, 1: 0.2, 2: 0.34, 3: 0.46, 4: 0.58 };
 
-export function FieldCanvas({ nodes, edges, rootId, settlement, view, theme = "day", reduced = false }: Props) {
+export function FieldCanvas({ nodes, edges, rootId, settlement, view, theme = "day", reduced = false, onNodeTap }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pointerRef = useRef({ x: 0.5, y: 0.5 });
   const startedRef = useRef(0);
+  // Live screen positions of every drawn node, so taps hit-test exactly (no re-derivation).
+  const positionsRef = useRef<Record<string, { x: number; y: number }>>({});
+  const onTapRef = useRef(onNodeTap);
+  onTapRef.current = onNodeTap;
 
   const layout = useMemo(() => {
     const byId = new Map(nodes.map((node) => [node.id, node]));
@@ -96,8 +101,29 @@ export function FieldCanvas({ nodes, edges, rootId, settlement, view, theme = "d
       };
     };
 
+    const onTap = (event: PointerEvent) => {
+      if (!onTapRef.current) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      let best: string | null = null;
+      let bestD = 30; // tap-friendly threshold (px)
+      for (const [id, p] of Object.entries(positionsRef.current)) {
+        const d = Math.hypot(p.x - x, p.y - y);
+        if (d < bestD) {
+          bestD = d;
+          best = id;
+        }
+      }
+      if (best) onTapRef.current(best);
+    };
+
     canvas.addEventListener("pointermove", onMove);
-    return () => canvas.removeEventListener("pointermove", onMove);
+    canvas.addEventListener("pointerup", onTap);
+    return () => {
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerup", onTap);
+    };
   }, []);
 
   useEffect(() => {
@@ -170,14 +196,17 @@ export function FieldCanvas({ nodes, edges, rootId, settlement, view, theme = "d
       drawDomino(ctx, settlement, layout.byId, pos, now, startedRef.current);
 
       const sorted = [...layout.nodes].sort((a, b) => pos(a).y - pos(b).y);
+      const positions: Record<string, { x: number; y: number }> = {};
       for (const node of sorted) {
         const p = pos(node);
+        positions[node.id] = { x: p.x, y: p.y };
         if (node.type === "merchant") {
           drawMerchant(ctx, p.x, p.y, node.dealPct || settlement?.contract?.rewardValue || 8, day);
         } else {
           drawPerson(ctx, p.x, p.y, node, view, day);
         }
       }
+      positionsRef.current = positions;
 
       drawEuroLabels(ctx, settlement, layout.byId, pos, now, startedRef.current);
 

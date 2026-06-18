@@ -5,6 +5,7 @@ import { FieldCanvas } from "@/components/FieldCanvas";
 import {
   buildDemoRail,
   cents,
+  confirmHelp,
   createUser,
   createRecommendation,
   demoDna,
@@ -16,6 +17,9 @@ import type { ConversionSettlement, DemoRail, EconomyResponse, FieldNode, Reputa
 import Link from "next/link";
 import { QrCode } from "@/components/QrCode";
 import { questions, buildDna, appOrigin } from "@/lib/onboarding";
+import { CATS, CAT_EXAMPLES, REWARD_THING, ROLES, SELF_PCT, SELF_EXAMPLES, rewardSelf, GIVE_KINDS, type RewardRule } from "@/lib/reward";
+
+type CanvasNode = FieldNode & { type?: "person" | "merchant"; dealPct?: number };
 
 type Screen = "welcome" | "onboard" | "field";
 type View = "value" | "aura";
@@ -53,6 +57,19 @@ export default function Home() {
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Node-tap detail + vouch ritual
+  const [selNode, setSelNode] = useState<CanvasNode | null>(null);
+  const [vouchStage, setVouchStage] = useState<null | "pick" | "sent" | "done">(null);
+  const [auraBumps, setAuraBumps] = useState<Record<string, number>>({});
+
+  // Recommend / open-yourself sheet
+  const [showRec, setShowRec] = useState(false);
+  const [recMode, setRecMode] = useState<"thing" | "self">("thing");
+  const [recCat, setRecCat] = useState(0);
+  const [recRole, setRecRole] = useState(0);
+  const [recTitle, setRecTitle] = useState("");
+  const [rewardIdx, setRewardIdx] = useState(0);
+
   useEffect(() => {
     getEconomy().then(setEconomy).catch(() => {
       setEconomy(null);
@@ -89,7 +106,10 @@ export default function Home() {
   const positionCents = Math.max(settlementTotalForRoot(settlement, rootUser?.id), SEED.positionCents);
 
   const canvasNodes = useMemo(() => {
-    const nodes = [...field.nodes];
+    const nodes: CanvasNode[] = field.nodes.map((n) => ({
+      ...n,
+      auraScore: n.auraScore + (auraBumps[n.id] || 0), // local vouch glow
+    }));
     if (settlement?.contract) {
       nodes.push({
         id: settlement.contract.merchantId,
@@ -99,10 +119,10 @@ export default function Home() {
         auraScore: 0,
         type: "merchant",
         dealPct: settlement.contract.rewardValue,
-      } as FieldNode & { type: "merchant"; dealPct: number });
+      });
     }
     return nodes;
-  }, [field.nodes, settlement]);
+  }, [field.nodes, settlement, auraBumps]);
 
   async function pick(answer: number) {
     const next = [...answers];
@@ -178,10 +198,61 @@ export default function Home() {
 
   const shareUrl = shareToken ? `${appOrigin()}/r/${shareToken}` : "";
 
+  // Reward list for the current sheet mode + selection.
+  const rewardList: RewardRule[] = recMode === "self" ? rewardSelf(SELF_PCT[ROLES[recRole]]) : REWARD_THING;
+  const reward = rewardList[Math.min(rewardIdx, rewardList.length - 1)];
+  const recBiz = recMode === "self" ? ROLES[recRole] : recTitle || "this place";
+  const fill = (s: string) => s.replace(/\{biz\}/g, recBiz);
+
+  function openRecommend() {
+    setRecMode("thing");
+    setRecCat(0);
+    setRecRole(0);
+    setRecTitle("");
+    setRewardIdx(0);
+    setShowRec(true);
+  }
+
+  async function generateFromSheet() {
+    setShowRec(false);
+    setShareToken(null);
+    setShowShare(true);
+    setCopied(false);
+    const title = recTitle.trim() || (recMode === "self" ? SELF_EXAMPLES[ROLES[recRole]] : CAT_EXAMPLES[CATS[recCat]]);
+    // Best-effort: a real recommendation makes the QR a live deep link. If there's
+    // no user yet, the QR still renders for the demo (experience first).
+    if (user) {
+      try {
+        const rec = await createRecommendation({ fromUserId: user.id, title, amount: reward.money ? 100 : 0 });
+        setShareToken(rec.token);
+        return;
+      } catch {
+        // fall through to a demo token
+      }
+    }
+    setShareToken(`demo${Math.random().toString(36).slice(2, 10)}`);
+  }
+
+  function tapNode(id: string) {
+    const node = canvasNodes.find((n) => n.id === id) || null;
+    setVouchStage(null);
+    setSelNode(node);
+  }
+
+  function pickVouch() {
+    setVouchStage("sent");
+    window.setTimeout(() => setVouchStage("done"), 1300);
+    // Best-effort real write (only valid for real backend ids); never blocks the UX.
+    if (user && selNode && /^[0-9a-f-]{20,}$/i.test(selNode.id)) {
+      confirmHelp(user.id, selNode.id, "vouch").catch(() => undefined);
+    }
+    if (selNode) setAuraBumps((b) => ({ ...b, [selNode.id]: (b[selNode.id] || 0) + 8 }));
+  }
+
   return (
     <main className={`app-shell ${theme === "day" ? "theme-day" : "theme-night"} layout-${layoutMode}`}>
       <div className="top-glow" />
-      <FieldCanvas nodes={canvasNodes} edges={field.edges} rootId={rootUser?.id} settlement={settlement} view={view} theme={theme} />
+      <FieldCanvas nodes={canvasNodes} edges={field.edges} rootId={rootUser?.id} settlement={settlement} view={view} theme={theme} onNodeTap={tapNode} />
 
       {notice && <div className="notice">{notice}</div>}
 
@@ -385,6 +456,10 @@ export default function Home() {
             {error && <p className="error mono">{error}</p>}
           </aside>
 
+          <button className="recommend-fab" onClick={openRecommend}>
+            <span style={{ fontSize: 20, lineHeight: 0, marginTop: -2 }}>+</span> Recommend anything
+          </button>
+
           {settlement && showReceipt && (
             <div className="sheet">
               <div className="kicker">settlement / #{displaySettlementId(settlement)}</div>
@@ -490,6 +565,126 @@ export default function Home() {
                 )}
                 <button className="ghost-button" style={{ marginTop: 14 }} onClick={() => setShowShare(false)}>
                   Done
+                </button>
+              </div>
+            </div>
+          )}
+
+          {selNode && (
+            <div className="modal-scrim" onClick={() => { setSelNode(null); setVouchStage(null); }}>
+              <div className="node-card" onClick={(e) => e.stopPropagation()}>
+                {!vouchStage && (
+                  <>
+                    <div className="node-head">
+                      <span className="node-dot" style={{ background: selNode.color, boxShadow: `0 0 16px ${selNode.color}` }} />
+                      <span className="node-name">{selNode.name}</span>
+                      {selNode.type === "merchant" && <span className="node-deal">{selNode.dealPct ?? 8}%</span>}
+                    </div>
+                    <div className="node-trust mono">✦ trust · vouched {Math.round(selNode.auraScore)}</div>
+                    <div className="node-stats">
+                      <div>
+                        <div className="node-stat-k mono">money · earned</div>
+                        <div className="node-stat-v money mono">€{cents(selNode.earningsCents)}</div>
+                      </div>
+                      <div>
+                        <div className="node-stat-k mono">trust · vouched</div>
+                        <div className="node-stat-v mono">{Math.round(selNode.auraScore)}</div>
+                      </div>
+                    </div>
+                    <div className="node-note">
+                      Trust is real help others vouched for — it weights how rewards split, never replaces money.
+                    </div>
+                    <div className="node-actions">
+                      <button className="primary-button" style={{ flex: 1 }} onClick={() => { setSelNode(null); openRecommend(); }}>
+                        Recommend {selNode.type === "merchant" ? "deal" : selNode.name} →
+                      </button>
+                      <button className="ghost-button" onClick={() => setVouchStage("pick")}>✦ Vouch</button>
+                    </div>
+                  </>
+                )}
+                {vouchStage === "pick" && (
+                  <>
+                    <div className="kicker" style={{ color: "var(--accent)" }}>vouch ✦ no money</div>
+                    <h3 style={{ margin: "8px 0 0" }}>What did {selNode.name} do for you?</h3>
+                    <p className="small" style={{ marginTop: 6, lineHeight: 1.4 }}>
+                      A vouch builds their trust — the real-help score that weights rewards. They confirm it, so it can&apos;t be faked.
+                    </p>
+                    <div className="vouch-kinds">
+                      {GIVE_KINDS.map((k) => (
+                        <button key={k} className="vouch-kind" onClick={pickVouch}>{k}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {vouchStage === "sent" && (
+                  <div style={{ textAlign: "center", padding: "18px 0" }}>
+                    <div className="vouch-spin">✦</div>
+                    <div className="enter-name" style={{ fontSize: 22 }}>Sent to {selNode.name}</div>
+                    <div className="mono small" style={{ marginTop: 8 }}>awaiting their confirm · the validation gate</div>
+                  </div>
+                )}
+                {vouchStage === "done" && (
+                  <div style={{ textAlign: "center", padding: "18px 0" }}>
+                    <div className="enter-title">trust exchanged ✦</div>
+                    <div className="mono small" style={{ marginTop: 8 }}>a mutual glow · both fields a little brighter</div>
+                    <button className="ghost-button" style={{ marginTop: 14 }} onClick={() => { setSelNode(null); setVouchStage(null); }}>
+                      Done
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {showRec && (
+            <div className="sheet-scrim" onClick={() => setShowRec(false)}>
+              <div className="rec-sheet" onClick={(e) => e.stopPropagation()}>
+                <div className="sheet-grip" />
+                <div className="rec-modes">
+                  <button className={recMode === "thing" ? "rec-mode active" : "rec-mode"} onClick={() => { setRecMode("thing"); setRewardIdx(0); }}>
+                    Recommend something
+                  </button>
+                  <button className={recMode === "self" ? "rec-mode active" : "rec-mode"} onClick={() => { setRecMode("self"); setRewardIdx(0); }}>
+                    Open yourself
+                  </button>
+                </div>
+                <h3 style={{ marginTop: 4 }}>{recMode === "self" ? "Open yourself to the field" : "Recommend anything"}</h3>
+                <p className="small" style={{ marginTop: 4, lineHeight: 1.4 }}>
+                  {recMode === "self"
+                    ? "Offer your own craft. Reward whoever sends you your first client."
+                    : "The place, person or thing you'd vouch for anyway."}
+                </p>
+                <div className="chip-row">
+                  {recMode === "self"
+                    ? ROLES.map((r, i) => (
+                        <button key={r} className={i === recRole ? "chip active" : "chip"} onClick={() => { setRecRole(i); setRewardIdx(0); }}>{r}</button>
+                      ))
+                    : CATS.map((c, i) => (
+                        <button key={c} className={i === recCat ? "chip active" : "chip"} onClick={() => setRecCat(i)}>{c}</button>
+                      ))}
+                </div>
+                <input
+                  className="rec-input"
+                  value={recTitle}
+                  onChange={(e) => setRecTitle(e.target.value)}
+                  placeholder={recMode === "self" ? SELF_EXAMPLES[ROLES[recRole]] : CAT_EXAMPLES[CATS[recCat]]}
+                />
+                <div className="rec-rule-label mono">set the reward — your rule</div>
+                <div className="chip-row">
+                  {rewardList.map((r, i) => (
+                    <button key={r.k} className={i === rewardIdx ? "chip active" : "chip"} onClick={() => setRewardIdx(i)}>{r.label}</button>
+                  ))}
+                </div>
+                <div className="reward-preview">
+                  <span className="reward-badge">{fill(reward.badge)}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="reward-name">{fill(reward.name)}</div>
+                    <div className="mono small" style={{ marginTop: 3 }}>{fill(reward.sub)}</div>
+                  </div>
+                </div>
+                <div className="small" style={{ marginTop: 10, lineHeight: 1.4, color: "var(--faint)" }}>{fill(reward.note)}</div>
+                <button className="primary-button" style={{ marginTop: 18, width: "100%" }} onClick={generateFromSheet}>
+                  Generate the code →
                 </button>
               </div>
             </div>
