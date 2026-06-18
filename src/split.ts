@@ -65,3 +65,69 @@ export function forfeitedBeyondCap(extraAncestorCount: number, totalCents: numbe
   }
   return total;
 }
+
+// ---------------------------------------------------------------------------
+// MERCHANT-FUNDED contract split (Addenda 4/6/8). Money comes from the merchant,
+// never friend-to-friend. The guest pays a BILL; the contract carves a REWARD
+// pool out of it; connectors along the warm-intro chain share that pool,
+// aura-weighted; the merchant keeps the rest. Pure + unit-testable.
+// ---------------------------------------------------------------------------
+export interface ChainConnector {
+  userId: string;
+  auraScore: number; // drives the bounded trust factor
+}
+
+export interface ContractTerms {
+  rewardType: 'pct' | 'flat';
+  rewardValue: number; // pct (e.g. 8) or flat reward in cents
+  capDepth: number;
+  splitCurve: number[]; // decay across hops, merchant-funded
+}
+
+/** Reward pool the merchant funds for one conversion. */
+export function rewardPool(terms: ContractTerms, billCents: number): number {
+  return terms.rewardType === 'pct'
+    ? Math.round(billCents * (terms.rewardValue / 100))
+    : Math.min(terms.rewardValue, billCents);
+}
+
+/**
+ * @param merchantId  receives hop 0 (the merchant's net cut)
+ * @param chain       warm-intro connectors, nearest the guest first: [hop1, hop2, ...]
+ * @param billCents   what the guest actually paid at the merchant
+ * @param terms       the consented contract (reward %, cap, curve)
+ * @param auraFactor  score -> bounded multiplier (inject aura.auraTrustFactor)
+ *
+ * Connector i gets round(pool * curve[i] * auraFactor(score_i)), capped so the
+ * connectors' total NEVER exceeds the reward pool (i.e. the contracted %). The
+ * merchant keeps bill - connectorsPaid, so ledger rows always sum to the bill.
+ */
+export function computeContractSplit(
+  merchantId: string,
+  chain: ChainConnector[],
+  billCents: number,
+  terms: ContractTerms,
+  auraFactor: (score: number) => number,
+): Payout[] {
+  const pool = rewardPool(terms, billCents);
+  const cap = Math.min(terms.capDepth, terms.splitCurve.length);
+
+  const raw: Payout[] = [];
+  for (let i = 0; i < chain.length && i < cap; i++) {
+    const base = pool * terms.splitCurve[i];
+    const share = Math.round(base * auraFactor(chain[i].auraScore));
+    if (share > 0) raw.push({ userId: chain[i].userId, amountCents: share, hop: i + 1 });
+  }
+
+  // Never exceed the contracted pool: scale down proportionally if aura premiums
+  // pushed connectors over it. (Rebalanced remainder stays with the merchant.)
+  let connectorsTotal = raw.reduce((s, p) => s + p.amountCents, 0);
+  if (connectorsTotal > pool && connectorsTotal > 0) {
+    const k = pool / connectorsTotal;
+    for (const p of raw) p.amountCents = Math.round(p.amountCents * k);
+    connectorsTotal = raw.reduce((s, p) => s + p.amountCents, 0);
+  }
+
+  // Merchant keeps the rest (hop 0). Sums to the full bill.
+  return [{ userId: merchantId, amountCents: billCents - connectorsTotal, hop: 0 }, ...raw];
+}

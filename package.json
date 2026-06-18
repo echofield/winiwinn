@@ -15,6 +15,7 @@
     "@mollie/api-client": "^4.1.0",
     "better-sqlite3": "^11.3.0",
     "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
     "express": "^4.19.2"
   },
   "devDependencies": {

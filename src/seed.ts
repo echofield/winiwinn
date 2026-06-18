@@ -7,6 +7,7 @@
  * When that recommendation converts, the domino walks UP from Carol:
  *   Carol (payee, hop0) | Bob (hop1) | Alice (hop2).
  */
+import 'dotenv/config';
 import { createUser, createEdge, createRecommendation, Dna } from './db';
 import { createCustomer } from './mollie';
 import { randomBytes } from 'crypto';
