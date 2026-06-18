@@ -225,7 +225,8 @@ export default function Home() {
     }
   }
 
-  const shareUrl = shareToken ? `${appOrigin()}/r/${shareToken}` : "";
+  // QR target: a join link when there's a token, else the app URL ("scan to open Winwinn").
+  const codeUrl = shareToken ? `${appOrigin()}/r/${shareToken}` : appOrigin();
 
   // Reward list for the current sheet mode + selection.
   const rewardList: RewardRule[] = recMode === "self" ? rewardSelf(SELF_PCT[ROLES[recRole]]) : REWARD_THING;
@@ -313,6 +314,9 @@ export default function Home() {
               <Link className="secondary-button" href="/scan" style={{ textDecoration: "none", textAlign: "center" }}>
                 Scan a code
               </Link>
+              <button className="secondary-button" onClick={() => { setShareToken(null); setCopied(false); setShowShare(true); }}>
+                ✦ Show QR code
+              </button>
             </div>
             <p className="mono small">Secured by Mollie · {displayNodes} souls already moving</p>
             {error && <p className="error mono">{error}</p>}
@@ -573,40 +577,6 @@ export default function Home() {
             </div>
           )}
 
-          {showShare && (
-            <div className="modal-scrim" onClick={() => setShowShare(false)}>
-              <div className="qr-card" onClick={(e) => e.stopPropagation()}>
-                <div className="kicker" style={{ color: "var(--accent)" }}>your code</div>
-                <h3 style={{ margin: "8px 0 2px" }}>They scan → they step into your field.</h3>
-                {shareToken ? (
-                  <>
-                    <div className="qr-well">
-                      <QrCode value={shareUrl} size={196} />
-                    </div>
-                    <div
-                      className="qr-link mono"
-                      onClick={() => {
-                        navigator.clipboard?.writeText(shareUrl).then(() => setCopied(true)).catch(() => undefined);
-                      }}
-                    >
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {shareUrl.replace(/^https?:\/\//, "")}
-                      </span>
-                      <span style={{ color: copied ? "#7fd9c9" : "var(--accent)" }}>{copied ? "copied" : "copy"}</span>
-                    </div>
-                  </>
-                ) : (
-                  <p className="small" style={{ marginTop: 16 }}>
-                    Build your field first, then your code appears here.
-                  </p>
-                )}
-                <button className="ghost-button" style={{ marginTop: 14 }} onClick={() => setShowShare(false)}>
-                  Done
-                </button>
-              </div>
-            </div>
-          )}
-
           {selNode && (
             <div className="modal-scrim" onClick={() => { setSelNode(null); setVouchStage(null); }}>
               <div className="node-card" onClick={(e) => e.stopPropagation()}>
@@ -727,6 +697,35 @@ export default function Home() {
             </div>
           )}
         </>
+      )}
+
+      {/* QR modal — top level so it works from any screen (welcome, field…) */}
+      {showShare && (
+        <div className="modal-scrim" onClick={() => setShowShare(false)}>
+          <div className="qr-card" onClick={(e) => e.stopPropagation()}>
+            <div className="kicker" style={{ color: "var(--accent)" }}>{shareToken ? "your code" : "winwinn"}</div>
+            <h3 style={{ margin: "8px 0 2px" }}>
+              {shareToken ? "They scan → they step into your field." : "Scan to open Winwinn."}
+            </h3>
+            <div className="qr-well">
+              <QrCode value={codeUrl} size={196} />
+            </div>
+            <div
+              className="qr-link mono"
+              onClick={() => {
+                navigator.clipboard?.writeText(codeUrl).then(() => setCopied(true)).catch(() => undefined);
+              }}
+            >
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {codeUrl.replace(/^https?:\/\//, "")}
+              </span>
+              <span style={{ color: copied ? "#7fd9c9" : "var(--accent)" }}>{copied ? "copied" : "copy"}</span>
+            </div>
+            <button className="ghost-button" style={{ marginTop: 14 }} onClick={() => setShowShare(false)}>
+              Done
+            </button>
+          </div>
+        </div>
       )}
     </main>
   );
