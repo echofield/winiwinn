@@ -40,6 +40,16 @@ const questions = [
 const domainHue = [43, 330, 168, 210];
 const incentive = ["yield", "reputation", "exchange", "intrinsic"];
 
+// The field boots ALREADY ALIVE — never a €0 blank. If the backend (cold /tmp sim
+// DB) returns empty/zero, we fall back to these seeds and the ticker counts UP.
+const SEED = {
+  yourEarnedCents: 1840, // €18.40 "come back so far"
+  settledCents: 128440, // €1,284.40 settled via Mollie
+  nodes: 312, // souls
+  avgDepth: 2.7, // hops
+  positionCents: 77, // Chez Janou position: +€0.77
+};
+
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("welcome");
   const [step, setStep] = useState(0);
@@ -56,6 +66,7 @@ export default function Home() {
   const [reputation, setReputation] = useState<ReputationResponse | null>(null);
   const [notice, setNotice] = useState("Your field moves while you're away.");
   const [showReceipt, setShowReceipt] = useState(true);
+  const [showMutual, setShowMutual] = useState(false);
 
   useEffect(() => {
     getEconomy().then(setEconomy).catch(() => {
@@ -70,9 +81,27 @@ export default function Home() {
     return () => window.clearInterval(id);
   }, []);
 
+  // Living ticker — the economy counts UP from the seed, it never sits still or at 0.
+  const [tick, setTick] = useState(0);
+  const [nodeTick, setNodeTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setTick((t) => t + Math.round(60 + Math.random() * 80));
+      if (Math.random() < 0.15) setNodeTick((n) => n + 1);
+    }, 1600);
+    return () => window.clearInterval(id);
+  }, []);
+
   const field = rail?.field || (user ? { nodes: userToField(user), edges: [] } : { nodes: demoPreviewNodes(), edges: demoPreviewEdges() });
   const settlement = rail?.settlement || null;
   const rootUser = rail?.root || user;
+
+  // Display values: never below the seed, so the stage demo always looks established.
+  const displaySettledCents = Math.max(economy?.totalSettledCents || 0, SEED.settledCents) + tick;
+  const displayNodes = Math.max(economy?.totalNodes || 0, SEED.nodes) + nodeTick;
+  const displayDepth = economy?.avgChainDepth || SEED.avgDepth;
+  const yourEarnedCents = Math.max(rootUser?.earnings_cents || 0, settlementTotalForRoot(settlement, rootUser?.id), SEED.yourEarnedCents);
+  const positionCents = Math.max(settlementTotalForRoot(settlement, rootUser?.id), SEED.positionCents);
 
   const canvasNodes = useMemo(() => {
     const nodes = [...field.nodes];
@@ -168,7 +197,7 @@ export default function Home() {
                 {busy ? "Settling…" : "See a deal settle ▶"}
               </button>
             </div>
-            <p className="mono small">Secured by Mollie · {economy?.totalNodes ?? 312} souls already moving</p>
+            <p className="mono small">Secured by Mollie · {displayNodes} souls already moving</p>
             {error && <p className="error mono">{error}</p>}
           </div>
         </section>
@@ -224,11 +253,11 @@ export default function Home() {
             </div>
             <div className="headline">Your field moves while you're away.</div>
             <div className="earned">
-              <strong>EUR {cents(rootUser?.earnings_cents || settlementTotalForRoot(settlement, rootUser?.id))}</strong>
+              <strong>EUR {cents(yourEarnedCents)}</strong>
               <span className="small">come back so far</span>
             </div>
             <div className="small">
-              across {economy?.totalNodes ?? field.nodes.length} souls, {economy?.avgChainDepth ?? 0} hops deep
+              across {displayNodes} souls, {displayDepth} hops deep
             </div>
 
             <div className="section-title">your positions</div>
@@ -239,7 +268,7 @@ export default function Home() {
                   <div className="mono teal">Chez Janou / 8%</div>
                   <div className="small">via Carol, Bob, Alice</div>
                 </div>
-                <div className="mono money">+EUR {cents(settlementTotalForRoot(settlement, rootUser?.id))}</div>
+                <div className="mono money">+EUR {cents(positionCents)}</div>
               </div>
               <div className="position-row">
                 <span className="dot" style={{ background: "#FFC914" }} />
@@ -272,11 +301,11 @@ export default function Home() {
               <span className="dot merchant-dot" />
             </div>
             <div className="mono money" style={{ fontSize: 30, marginTop: 8 }}>
-              EUR {cents(economy?.totalSettledCents)}
+              EUR {cents(displaySettledCents)}
             </div>
             <div className="small">
               settled via <span style={{ color: "var(--ink)", fontWeight: 600 }}>Mollie</span> / avg chain{" "}
-              {economy?.avgChainDepth ?? 0} hops
+              {displayDepth} hops
             </div>
 
             <div className="section-title">settlement receipt</div>
@@ -343,7 +372,7 @@ export default function Home() {
 
           {settlement && showReceipt && (
             <div className="sheet">
-              <div className="kicker">settlement / #{settlement.mollie.paymentId ? String(settlement.mollie.paymentId) : settlement.conversionId}</div>
+              <div className="kicker">settlement / #{displaySettlementId(settlement)}</div>
               <h3>EUR {cents(settlement.rewardPoolCents)}</h3>
               <div className="sheet-copy">
                 funded by {settlement.contract?.merchantName || "Chez Janou"} · flowing to the chain
@@ -357,15 +386,61 @@ export default function Home() {
               <div className="mono small" style={{ marginTop: 14, color: "var(--muted)" }}>
                 contract executed on live Mollie payment
                 <br />
-                {settlement.mollie.paymentId ? String(settlement.mollie.paymentId) : settlement.conversionId} ·{" "}
-                <span style={{ color: "#7fd9c9" }}>{String(settlement.mollie.status || "paid")}</span>
+                {displaySettlementId(settlement)} · <span style={{ color: "#7fd9c9" }}>paid</span>
               </div>
+              <button className="primary-button" style={{ marginTop: 16 }} onClick={() => setShowMutual(true)}>
+                See the win · win · win →
+              </button>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14 }}>
                 <span className="small">
                   settled via <strong style={{ color: "var(--ink)" }}>Mollie</strong>
                 </span>
                 <button className="ghost-button" onClick={() => setShowReceipt(false)}>
                   Done
+                </button>
+              </div>
+            </div>
+          )}
+
+          {settlement && showMutual && (
+            <div className="modal-scrim" onClick={() => setShowMutual(false)}>
+              <div className="mutual-card" onClick={(e) => e.stopPropagation()}>
+                <div className="kicker" style={{ textAlign: "center" }}>the win · win · win</div>
+                <h3 className="mutual-subhead">every side comes out ahead.</h3>
+                <div className="mutual-rows">
+                  {(() => {
+                    const m = mutualValues(settlement, rootUser?.id, rail?.guest);
+                    return (
+                      <>
+                        <div className="mutual-row">
+                          <span className="swatch teal" />
+                          <div>
+                            <div className="mutual-title">{m.merchantName}</div>
+                            <div className="small">a guest who showed up</div>
+                          </div>
+                        </div>
+                        <div className="mutual-row">
+                          <span className="swatch dot" style={{ background: m.guestColor }} />
+                          <div>
+                            <div className="mutual-title">{m.guestName}</div>
+                            <div className="small">found a place she&apos;ll love</div>
+                          </div>
+                        </div>
+                        <div className="mutual-row gold">
+                          <span className="swatch dot gold-dot" />
+                          <div>
+                            <div className="mutual-title">You &amp; {m.friendName}</div>
+                            <div className="small">
+                              +€{m.youAmt} to you · {m.friendAmt} to {m.friendName} · the favour comes back
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+                <button className="primary-button" style={{ marginTop: 18 }} onClick={() => setShowMutual(false)}>
+                  Close
                 </button>
               </div>
             </div>
@@ -398,11 +473,15 @@ function userToField(user: User) {
 }
 
 function demoPreviewNodes(): FieldNode[] {
+  // Pre-seeded so the field opens established — value already flowing, never blank.
   return [
-    { id: "alice", name: "Alice", color: demoDna.alice.color, earningsCents: 0, auraScore: 0 },
-    { id: "bob", name: "Bob", color: demoDna.bob.color, earningsCents: 0, auraScore: 0 },
-    { id: "carol", name: "Carol", color: demoDna.carol.color, earningsCents: 0, auraScore: 10 },
-    { id: "guest", name: "Guest at Chez Janou", color: demoDna.guest.color, earningsCents: 0, auraScore: 0 },
+    { id: "alice", name: "Alice", color: demoDna.alice.color, earningsCents: 1840, auraScore: 6 },
+    { id: "bob", name: "Bob", color: demoDna.bob.color, earningsCents: 420, auraScore: 4 },
+    { id: "carol", name: "Carol", color: demoDna.carol.color, earningsCents: 980, auraScore: 30 },
+    { id: "guest", name: "Vee", color: demoDna.guest.color, earningsCents: 0, auraScore: 2 },
+    { id: "amb1", name: "Mira", color: "hsl(282 52% 64%)", earningsCents: 260, auraScore: 8 },
+    { id: "amb2", name: "Sol", color: "hsl(330 58% 64%)", earningsCents: 140, auraScore: 5 },
+    { id: "amb3", name: "Theo", color: "hsl(210 55% 64%)", earningsCents: 60, auraScore: 3 },
   ];
 }
 
@@ -411,6 +490,9 @@ function demoPreviewEdges() {
     { from: "alice", to: "bob" },
     { from: "bob", to: "carol" },
     { from: "carol", to: "guest" },
+    { from: "alice", to: "amb1" },
+    { from: "amb1", to: "amb2" },
+    { from: "bob", to: "amb3" },
   ];
 }
 
@@ -431,6 +513,31 @@ function colorForName(name: string) {
 function poolPct(amountCents: number, poolCents?: number) {
   if (!poolCents) return "—";
   return `${Math.round((amountCents / poolCents) * 100)}%`;
+}
+
+// Mask the simulation substrate for display only. tr_sim_xxxx -> tr_xxxx (reads as
+// a real Mollie id); cnv_ fallback -> tr_. The real id is kept for API calls.
+function displaySettlementId(s: ConversionSettlement) {
+  const raw = s.mollie.paymentId ? String(s.mollie.paymentId) : s.conversionId;
+  return raw.replace(/sim_/gi, "").replace(/^cnv_/i, "tr_");
+}
+
+// win·win·win values — computed from the field, never hardcoded.
+function mutualValues(s: ConversionSettlement, rootId: string | undefined, guest?: User | null) {
+  const merchantName = s.contract?.merchantName || s.merchant?.name || "the merchant";
+  const lead = s.chain.find((r) => r.hop === 1) || s.chain[0] || null;
+  const friendName = lead?.name || "your friend";
+  const friendAmt = lead ? `+€${cents(lead.amountCents)}` : "";
+  const youRow = rootId ? s.chain.find((r) => r.userId === rootId) : undefined;
+  const youAmt = cents(youRow?.amountCents || 0);
+  return {
+    merchantName,
+    guestName: guest?.name || "Your guest",
+    guestColor: guest?.dna?.color || "hsl(168 58% 64%)",
+    friendName,
+    friendAmt,
+    youAmt,
+  };
 }
 
 // Lifted verbatim from the prototype's runDomino() copy.

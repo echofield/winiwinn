@@ -535,3 +535,77 @@ button {
     padding-top: 0;
   }
 }
+
+/* win · win · win modal */
+.modal-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 3, 8, 0.6);
+  backdrop-filter: blur(7px);
+  animation: fade-in 0.4s ease both;
+}
+.mutual-card {
+  width: 100%;
+  max-width: 382px;
+  padding: 26px 24px 22px;
+  border-radius: 26px;
+  border: 1px solid var(--brdg);
+  background: var(--card);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.mutual-subhead {
+  font-family: "Cormorant Garamond", serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 20px;
+  color: var(--ink);
+  text-align: center;
+  margin: 8px 0 0;
+}
+.mutual-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+.mutual-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 13px 15px;
+  border-radius: 15px;
+  border: 1px solid var(--brd);
+  background: var(--card2);
+}
+.mutual-row.gold {
+  border-color: var(--brdg);
+  background: rgba(194, 162, 95, 0.1);
+}
+.mutual-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.swatch {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+.swatch.teal {
+  border-radius: 3px;
+  background: hsl(168 48% 52%);
+  box-shadow: 0 0 10px hsla(168 50% 55% / 0.6);
+}
+.swatch.dot {
+  border-radius: 50%;
+}
+.swatch.gold-dot {
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+}
