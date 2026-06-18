@@ -94,7 +94,9 @@ export default function Home() {
     return () => window.clearInterval(id);
   }, []);
 
-  const field = rail?.field || (user ? { nodes: userToField(user), edges: [] } : { nodes: demoPreviewNodes(), edges: demoPreviewEdges() });
+  // Always show a populated, living field — even right after onboarding, blend the
+  // real user into the seeded network (centered on them) so it's never near-empty.
+  const field = rail?.field || seededField(user);
   const settlement = rail?.settlement || null;
   const rootUser = rail?.root || user;
 
@@ -223,7 +225,15 @@ export default function Home() {
     // no user yet, the QR still renders for the demo (experience first).
     if (user) {
       try {
-        const rec = await createRecommendation({ fromUserId: user.id, title, amount: reward.money ? 100 : 0 });
+        const rec = await createRecommendation({
+          fromUserId: user.id,
+          title,
+          amount: reward.money ? 100 : 0,
+          rewardKind: reward.k,
+          rewardPct: reward.money ? (recMode === "self" ? SELF_PCT[ROLES[recRole]] : 8) : undefined,
+          rewardFunder: recMode === "self" ? "self" : "merchant",
+          capHops: 3,
+        });
         setShareToken(rec.token);
         return;
       } catch {
@@ -695,22 +705,18 @@ export default function Home() {
   );
 }
 
-function userToField(user: User) {
-  return [
+// A populated, living field centered on the current user (or "Alice" before onboarding).
+// Value already flowing, souls on every ring — never a near-empty canvas.
+function seededField(user: User | null): { nodes: FieldNode[]; edges: { from: string; to: string }[] } {
+  const centerId = user?.id || "alice";
+  const nodes: FieldNode[] = [
     {
-      id: user.id,
-      name: user.name,
-      color: user.dna.color,
-      earningsCents: user.earnings_cents,
-      auraScore: user.aura_score,
+      id: centerId,
+      name: user?.name || "Alice",
+      color: user?.dna.color || demoDna.alice.color,
+      earningsCents: Math.max(user?.earnings_cents || 0, 1840),
+      auraScore: Math.max(user?.aura_score || 0, 6),
     },
-  ];
-}
-
-function demoPreviewNodes(): FieldNode[] {
-  // Pre-seeded so the field opens established — value already flowing, never blank.
-  return [
-    { id: "alice", name: "Alice", color: demoDna.alice.color, earningsCents: 1840, auraScore: 6 },
     { id: "bob", name: "Bob", color: demoDna.bob.color, earningsCents: 420, auraScore: 4 },
     { id: "carol", name: "Carol", color: demoDna.carol.color, earningsCents: 980, auraScore: 30 },
     { id: "guest", name: "Vee", color: demoDna.guest.color, earningsCents: 0, auraScore: 2 },
@@ -718,17 +724,15 @@ function demoPreviewNodes(): FieldNode[] {
     { id: "amb2", name: "Sol", color: "hsl(330 58% 64%)", earningsCents: 140, auraScore: 5 },
     { id: "amb3", name: "Theo", color: "hsl(210 55% 64%)", earningsCents: 60, auraScore: 3 },
   ];
-}
-
-function demoPreviewEdges() {
-  return [
-    { from: "alice", to: "bob" },
+  const edges = [
+    { from: centerId, to: "bob" },
     { from: "bob", to: "carol" },
     { from: "carol", to: "guest" },
-    { from: "alice", to: "amb1" },
+    { from: centerId, to: "amb1" },
     { from: "amb1", to: "amb2" },
     { from: "bob", to: "amb3" },
   ];
+  return { nodes, edges };
 }
 
 function settlementTotalForRoot(settlement: ConversionSettlement | null, userId?: string) {

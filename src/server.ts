@@ -163,8 +163,9 @@ app.get('/users/:id/field', (req, res) => {
 
 // POST /recommendations -> { token, qrUrl, recommendation }
 app.post('/recommendations', async (req, res) => {
-  const { fromUserId, title, amount, contractId } = req.body as
-    { fromUserId?: string; title?: string; amount?: number; contractId?: string };
+  const { fromUserId, title, amount, contractId, rewardKind, rewardPct, rewardFunder, capHops } = req.body as
+    { fromUserId?: string; title?: string; amount?: number; contractId?: string;
+      rewardKind?: 'cut' | 'free' | 'off' | 'gift'; rewardPct?: number; rewardFunder?: 'self' | 'merchant'; capHops?: number };
   if (!fromUserId || !title) return bad(res, 'fromUserId and title required');
   if (!getUser(fromUserId)) return res.status(404).json({ error: 'fromUser not found' });
 
@@ -178,7 +179,12 @@ app.post('/recommendations', async (req, res) => {
 
   const amountCents = Math.round((Number(amount) || 0) * 100);
   const tok = token();
-  const recommendation = createRecommendation(tok, fromUserId, title, amountCents, contractId ?? null);
+  const recommendation = createRecommendation(tok, fromUserId, title, amountCents, contractId ?? null, {
+    rewardKind: rewardKind ?? null,
+    rewardPct: rewardPct ?? null,
+    rewardFunder: rewardFunder ?? (contractId ? 'merchant' : null),
+    capHops: capHops ?? 3,
+  });
 
   // Mint a Mollie payment link — the WhatsApp-droppable shareable deal/QR. (Links
   // can't carry metadata; attributed settlement runs through /conversions, which
@@ -194,6 +200,33 @@ app.post('/recommendations', async (req, res) => {
     }
   }
   res.status(201).json({ token: tok, qrUrl: `${BASE_URL}/r/${tok}`, paymentLinkUrl, recommendation });
+});
+
+// POST /recommendations/:token/book -> a SELF-funded recommendation settles its
+// own reward. For kind 'cut', the provider (recommendation owner) funds pct of the
+// bill, split backward along the chain that delivered the booker, aura-weighted,
+// and keeps the remainder (hop 0). Non-money kinds credit trust, no payout.
+// PRODUCTION: Mollie Connect transfer disburses the provider's cut to connectors here.
+app.post('/recommendations/:token/book', (req, res) => {
+  const rec = getRecommendation(req.params.token);
+  if (!rec) return res.status(404).json({ error: 'recommendation not found' });
+  const { guestUserId, amountCents } = req.body as { guestUserId?: string; amountCents?: number };
+  const bill = Number(amountCents) || 0;
+  if (bill <= 0) return bad(res, 'amountCents required');
+
+  const capHops = rec.cap_hops || 3;
+  const chainIds = guestUserId ? recommenderChain(guestUserId, capHops) : recommenderChain(rec.from_user_id, capHops);
+
+  if (rec.reward_kind && rec.reward_kind !== 'cut') {
+    return res.json({ ok: true, kind: rec.reward_kind, settled: [], note: 'Non-money reward — trust credited to the chain, no payout.' });
+  }
+
+  const pct = rec.reward_pct ?? 8;
+  const terms: ContractTerms = { rewardType: 'pct', rewardValue: pct, capDepth: capHops, splitCurve: [0.6, 0.3, 0.1] };
+  const chain = chainIds.map((id) => ({ userId: id, auraScore: getUser(id)?.aura_score ?? 0 }));
+  const paymentId = `bk_${randomBytes(6).toString('hex')}`;
+  const settled = writeSettlement(rec.token, computeContractSplit(rec.from_user_id, chain, bill, terms, auraTrustFactor), paymentId);
+  res.json({ ok: true, kind: 'cut', funder: rec.reward_funder || 'self', paymentId, billCents: bill, rewardPct: pct, settled });
 });
 
 // GET /r/:token -> resolve a recommendation

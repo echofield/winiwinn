@@ -141,29 +141,36 @@ export default function EnterFieldPage() {
         <>
           <FieldCanvas
             nodes={[
-              {
-                id: joined.user.id,
-                name: joined.user.name,
-                color: joined.user.dna.color,
-                earningsCents: joined.user.earnings_cents,
-                auraScore: joined.user.aura_score,
-              },
+              // YOU — first, the gold light at the centre of your own space.
+              { id: joined.user.id, name: joined.user.name, color: joined.user.dna.color, earningsCents: 0, auraScore: Math.max(2, joined.user.aura_score) },
+              // the one who brought you in, and a few souls already around you
+              { id: "inviter", name: inviter, color: link?.fromUser?.dna?.color || "hsl(43 62% 64%)", earningsCents: 460, auraScore: 14 },
+              { id: "s1", name: "Mira", color: "hsl(282 52% 64%)", earningsCents: 180, auraScore: 7 },
+              { id: "s2", name: "Sol", color: "hsl(330 58% 64%)", earningsCents: 90, auraScore: 5 },
+              { id: "s3", name: "Theo", color: "hsl(210 55% 64%)", earningsCents: 60, auraScore: 4 },
             ]}
-            edges={joined.field.edges}
-            rootId={joined.field.rootId}
+            edges={[
+              { from: joined.user.id, to: "inviter" },
+              { from: joined.user.id, to: "s1" },
+              { from: "inviter", to: "s2" },
+              { from: "s1", to: "s3" },
+            ]}
+            rootId={joined.user.id}
             settlement={null}
             view="value"
             theme="night"
           />
           <section className="enter-card joined-card">
-            <div className="kicker" style={{ color: "var(--accent)" }}>you bloomed in</div>
-            <h1 className="enter-name">Welcome, {joined.user.name}.</h1>
-            <div className="enter-title">You&apos;re in {inviter}&apos;s field — {joinedNodes.size || 1} souls and counting.</div>
-            <p className="small" style={{ marginTop: 16, lineHeight: 1.5 }}>
-              Recommend something of your own, and the favour starts circling back to you.
+            <div className="kicker" style={{ color: "var(--accent)" }}>this is your space</div>
+            <h1 className="enter-name">You&apos;re in, {joined.user.name}.</h1>
+            <div className="enter-title">{inviter} opened the door — you&apos;re the newest light here.</div>
+            <p className="small" style={{ marginTop: 14, lineHeight: 1.5 }}>
+              The glow at the centre is you. Recommend a place, a person, anything you&apos;d vouch for —
+              when someone you send converts, the reward flows <strong style={{ color: "var(--ink)" }}>back to you</strong>,
+              and back to {inviter} who brought you in. No price between friends.
             </p>
             <Link className="primary-button" href="/" style={{ marginTop: 16, display: "block", textAlign: "center", textDecoration: "none" }}>
-              Open Winwinn
+              Enter your field →
             </Link>
           </section>
         </>

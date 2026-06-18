@@ -87,6 +87,10 @@ export function createRecommendation(input: {
   amount?: number;
   contractId?: string;
   linkAmountCents?: number;
+  rewardKind?: "cut" | "free" | "off" | "gift";
+  rewardPct?: number;
+  rewardFunder?: "self" | "merchant";
+  capHops?: number;
 }): Promise<RecommendationResponse> {
   return post<RecommendationResponse>("/recommendations", input);
 }

@@ -129,6 +129,11 @@ ensureColumn('users', 'aura_score', 'aura_score REAL NOT NULL DEFAULT 0');
 ensureColumn('users', 'aura_given', 'aura_given INTEGER NOT NULL DEFAULT 0');
 ensureColumn('users', 'aura_received', 'aura_received INTEGER NOT NULL DEFAULT 0');
 ensureColumn('recommendations', 'contract_id', 'contract_id TEXT');
+// Reward rule carried by a recommendation (the recommender's "rule").
+ensureColumn('recommendations', 'reward_kind', "reward_kind TEXT");          // cut | free | off | gift
+ensureColumn('recommendations', 'reward_pct', 'reward_pct REAL');            // % for cut/off
+ensureColumn('recommendations', 'reward_funder', "reward_funder TEXT");      // self | merchant
+ensureColumn('recommendations', 'cap_hops', 'cap_hops INTEGER NOT NULL DEFAULT 3');
 
 // ---- Types -----------------------------------------------------------------
 export interface Dna { vector: number[]; color: string }
@@ -227,17 +232,39 @@ export function usersByIds(ids: string[]): User[] {
 }
 
 // ---- Recommendations -------------------------------------------------------
+export interface RewardRule {
+  rewardKind?: "cut" | "free" | "off" | "gift" | null;
+  rewardPct?: number | null;
+  rewardFunder?: "self" | "merchant" | null;
+  capHops?: number;
+}
 export interface Recommendation {
   token: string;
   from_user_id: string;
   title: string;
   amount_cents: number;
   contract_id: string | null;
+  reward_kind: string | null;
+  reward_pct: number | null;
+  reward_funder: string | null;
+  cap_hops: number;
   created_at: string;
 }
-export function createRecommendation(token: string, fromUserId: string, title: string, amountCents: number, contractId: string | null = null): Recommendation {
-  db.prepare(`INSERT INTO recommendations (token, from_user_id, title, amount_cents, contract_id) VALUES (?, ?, ?, ?, ?)`)
-    .run(token, fromUserId, title, amountCents, contractId);
+export function createRecommendation(
+  token: string,
+  fromUserId: string,
+  title: string,
+  amountCents: number,
+  contractId: string | null = null,
+  reward: RewardRule = {},
+): Recommendation {
+  db.prepare(
+    `INSERT INTO recommendations (token, from_user_id, title, amount_cents, contract_id, reward_kind, reward_pct, reward_funder, cap_hops)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    token, fromUserId, title, amountCents, contractId,
+    reward.rewardKind ?? null, reward.rewardPct ?? null, reward.rewardFunder ?? null, reward.capHops ?? 3,
+  );
   return getRecommendation(token)!;
 }
 export function getRecommendation(token: string): Recommendation | null {
